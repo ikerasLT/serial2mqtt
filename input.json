@@ -1,0 +1,14 @@
+{
+  "unique_id": "12345",
+  "device": {
+    "ids": "aa:bb:cc:dd:ee:ff",
+    "name": "Device1"
+  },
+  "device_class":"temperature",
+  "unit_of_measurement":"°C",
+  "value_template":"{{ value_json.temperature}}",
+  "qos": 2,
+  "name": "Temperature Sensor",
+  "value": 25.5,
+  "retain": true
+}
