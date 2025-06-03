@@ -5,16 +5,14 @@ import time
 
 import serial
 import paho.mqtt.client as mqtt
-from paho.mqtt.enums import CallbackAPIVersion
 
 # TODO: Better handle discovery messages
 # TODO: Add Birth and Will messages
 
 # setup logging
-logging.basicConfig(level=logging.INFO,  # or DEBUG for more detail
+logging.basicConfig(level=logging.INFO,  # or DEBUG for more detail TODO: add config option
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("/config/serial2mqtt.log"),  # or any path
         logging.StreamHandler()
     ])
 logger = logging.getLogger(__name__)
@@ -24,7 +22,7 @@ logger.info("Starting serial2mqtt...")
 
 # establish a serial connection
 usb_port = os.getenv('USB_PORT', '/dev/ttyUSB0')
-baud_rate = os.getenv('BAUD_RATE', 115200)
+baud_rate = int(os.getenv('BAUD_RATE', 115200))
 
 logger.info("Connecting to Serial on Port: %s,at Baud Rate: %d", usb_port, baud_rate)
 ser = serial.Serial(usb_port, baud_rate)
@@ -32,15 +30,18 @@ ser = serial.Serial(usb_port, baud_rate)
 
 # establish a mqtt connection
 mqtt_broker = os.getenv('MQTT_BROKER', "your_mqtt_broker_ip")
-mqtt_port = os.getenv('MQTT_PORT', 1883)
+mqtt_port = int(os.getenv('MQTT_PORT', 1883))
 mqtt_user = os.getenv('MQTT_USER', "mqtt_user")
 mqtt_password = os.getenv('MQTT_PASSWORD', "mqtt_password")
 mqtt_topic_prefix = os.getenv('MQTT_TOPIC_PREFIX', "homeassistant/sensor/esp")
-mqtt_client = mqtt.Client(callback_api_version=CallbackAPIVersion.VERSION2)
+mqtt_client = mqtt.Client('serial2mqtt')
 mqtt_client.username_pw_set(mqtt_user, mqtt_password)
+mqtt_client.on_disconnect = lambda client, userdata, rc: logger.error("Disconnected from MQTT Broker: %s", rc)
 
 logger.info("Connecting to MQTT Broker: %s, Port: %d", mqtt_broker, mqtt_port)
 mqtt_client.connect(mqtt_broker, mqtt_port, 60)
+
+autodiscovery_sent = []
 
 # read from serial
 def read_serial():
@@ -59,11 +60,15 @@ def parse_channel(payload):
 
 def parse_autodiscovery(payload, channel):
     del payload['value']
+    del payload['retain']
 
     payload['origin'] = {
         "name": "serial2mqtt",
     }
-    payload['state_topic"'] = f"{mqtt_topic_prefix}/{channel}/state"
+    payload['state_topic'] = f"{mqtt_topic_prefix}/{channel}/state"
+
+    payload['device']['identifiers'] = [payload['device']['ids']] # TODO: remove once fixed in firmware
+    payload['qos'] = 0
 
     return payload
 
@@ -74,23 +79,28 @@ def parse_value(payload):
 
 def parse_data(data):
     payload = json.loads(data)
+    value = parse_value(payload)
     channel = parse_channel(payload)
     autodiscovery = parse_autodiscovery(payload, channel)
-    value = parse_value(payload)
 
     return channel, autodiscovery, value
 
 # send mqtt autodiscovery
 def send_autodiscovery(channel, autodiscovery):
+    if channel in autodiscovery_sent:
+        logger.info("Autodiscovery already sent for channel: %s", channel)
+        return
+
     topic = f"{mqtt_topic_prefix}/{channel}/config"
-    mqtt_client.publish(topic, json.dumps(autodiscovery), qos=1)
-    logger.info("Sent autodiscovery to topic: %s", topic)
+    response = mqtt_client.publish(topic, json.dumps(autodiscovery))
+    logger.info("Sent autodiscovery to topic: %s: %s", topic, autodiscovery)
+    autodiscovery_sent.append(channel)
 
 # send mqtt data
 def send_data(channel, value):
     topic = f"{mqtt_topic_prefix}/{channel}/state"
-    mqtt_client.publish(topic, json.dumps(value), qos=1)
-    logger.info("Sent data to topic: %s, $s", topic, value)
+    response = mqtt_client.publish(topic, json.dumps(value), qos=0) # TODO: remove qos=0 once fixed in firmware
+    logger.info("Sent data to topic: %s, %s", topic, value)
 
 # main loop
 while True:

@@ -1,5 +1,5 @@
 name: serial2mqtt
-version: 1.1
+version: 1.1.6
 slug: serial2mqtt
 description: Serial to MQTT bridge
 arch:
@@ -13,6 +13,7 @@ schema:
   usb_port: device(subsystem=tty)
   baud_rate: int
   mqtt_topic_prefix: str
-#services:
-#  mqtt: need
+services:
+  - mqtt:need
 stage: experimental
+init: false

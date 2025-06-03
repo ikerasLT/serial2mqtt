@@ -17,4 +17,5 @@
     </phpcs_settings>
   </component>
   <component name="PhpWorkspaceProjectConfiguration" backward_compatibility_performed="true" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.9 (Serial2MQTT)" project-jdk-type="Python SDK" />
 </project>

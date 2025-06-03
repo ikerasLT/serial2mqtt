@@ -1,14 +1,16 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=ghcr.io/hassio-addons/base-python:3.11
 FROM $BUILD_FROM
 
 WORKDIR /app
 
-RUN pip install paho-mqtt pyserial
+RUN apk add --no-cache \
+    py3-paho-mqtt \
+    py3-pyserial
 
-COPY serial2mqtt.py /app/espnow_mqtt.py
+# Copy main script
+COPY serial2mqtt.py /app/serial2mqtt.py
 
-COPY run.sh /app/run.sh
+COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
 CMD [ "/run.sh" ]
-
